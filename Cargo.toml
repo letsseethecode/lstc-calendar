@@ -1,7 +1,10 @@
 [package]
 name = "lstc-calendar"
+description = "Calendar classification system, which applies meaning to dates such as Christmas day or Weekday and Weekend, etc."
+readme = "README.md"
 version = "0.1.0"
 edition = "2021"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
