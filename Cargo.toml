@@ -1,6 +1,8 @@
 [package]
 name = "lstc-calendar"
 description = "Calendar classification system, which applies meaning to dates such as Christmas day or Weekday and Weekend, etc."
+repository = "https://github.com/letsseethecode/lstc-calendar.git"
+license-file = "LICENSE.txt"
 readme = "README.md"
 version = "0.1.0"
 edition = "2021"
