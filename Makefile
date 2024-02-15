@@ -1,4 +1,4 @@
-.PHONY = build test
+.PHONY = build test publish
 
 SRC_FILES = $(shell find . -name "*.rs")
 CFG_FILES = $(shell find . -name "*.toml")
