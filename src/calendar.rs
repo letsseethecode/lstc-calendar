@@ -1,8 +1,24 @@
-use chrono::{Datelike, Days, Duration, Months, NaiveDate, Weekday};
+use std::cmp::Ordering;
+
+use chrono::{Datelike, Duration, Months, NaiveDate, Weekday};
 use serde::{Deserialize, Serialize};
 
 ///
+/// The Calendar is a collection of patterns to match.
 ///
+/// ```
+/// use chrono::{NaiveDate, Weekday};
+/// use lstc_calendar::{Calendar, CalendarEntry};
+/// enum Day {
+///     Workday,
+///     Weekend,
+/// }
+/// let mut subject = Calendar::<Day>::new();
+/// subject.add(CalendarEntry::all(Day::Workday));
+/// subject.add(CalendarEntry::days(Day::Weekend, vec![Weekday::Sat, Weekday::Sun]));
+/// let today = chrono::offset::Local::now().naive_local().date();
+/// let today = subject.classify(today);
+/// ```
 ///
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Calendar<T> {
@@ -24,13 +40,17 @@ pub struct CalendarEntry<T> {
     pub day: Option<u32>,
     /// The week of the month this entry applies to
     pub week_of_month: Option<i32>,
-    /// The week of the year this entry applies to
-    pub week_of_year: Option<u32>,
     /// The weekdays this entry applies to
     pub days_of_week: Option<Vec<Weekday>>,
     /// The offset can be used to model lieu days, where a holiday would
     /// normally fall on a weekend and a replacement should be offered.
     pub offset: i32,
+}
+
+impl<T> std::default::Default for Calendar<T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T> Calendar<T> {
@@ -54,38 +74,8 @@ impl<T> Calendar<T> {
         self.classify(d)
     }
 
-    pub fn add_entry(
-        &mut self,
-        classification: T,
-        year: Option<i32>,
-        month: Option<u32>,
-        day: Option<u32>,
-        week_of_year: Option<u32>,
-        week_of_month: Option<i32>,
-        days_of_week: Option<Vec<Weekday>>,
-        offset: i32,
-    ) {
-        let entry = CalendarEntry {
-            year,
-            month,
-            day,
-            week_of_month,
-            week_of_year,
-            days_of_week,
-            classification,
-            offset,
-        };
-        self.entries.insert(0, entry);
-    }
-
-    pub fn add_entry_ymd(
-        &mut self,
-        classification: T,
-        year: Option<i32>,
-        month: Option<u32>,
-        day: Option<u32>,
-    ) {
-        self.add_entry(classification, year, month, day, None, None, None, 0)
+    pub fn add(&mut self, entry: CalendarEntry<T>) {
+        self.entries.insert(0, entry)
     }
 }
 
@@ -101,24 +91,72 @@ impl<T> CalendarEntry<T> {
         self.year.map_or(true, |y| y == year)
             && self.month.map_or(true, |m| m == month)
             && self.day.map_or(true, |d| d == day)
-            && self.week_of_month.map_or(true, |w| {
-                if w > 0 {
-                    w == ((d0 / 7) + 1) as i32
-                } else if w < 0 {
+            && self.week_of_month.map_or(true, |w| match w.cmp(&0) {
+                Ordering::Equal => false,
+                Ordering::Greater => w == ((d0 / 7) + 1) as i32,
+                Ordering::Less => {
                     let som = NaiveDate::from_ymd_opt(date.year(), date.month(), 1)
                         .unwrap()
                         .checked_add_months(Months::new(1))
                         .unwrap();
                     let diff = (som - date).num_days();
                     -w == (((diff - 1) / 7) + 1) as i32
-                } else {
-                    false
                 }
             })
             && self
                 .days_of_week
                 .clone()
                 .map_or(true, |v| v.contains(&weekday))
+    }
+
+    pub fn new(
+        classification: T,
+        year: Option<i32>,
+        month: Option<u32>,
+        day: Option<u32>,
+        week_of_month: Option<i32>,
+        days_of_week: Option<Vec<Weekday>>,
+        offset: i32,
+    ) -> Self {
+        Self {
+            classification,
+            year,
+            month,
+            day,
+            week_of_month,
+            days_of_week,
+            offset,
+        }
+    }
+
+    pub fn all(classification: T) -> Self {
+        Self::new(classification, None, None, None, None, None, 0)
+    }
+
+    pub fn ymd(classification: T, year: Option<i32>, month: Option<u32>, day: Option<u32>) -> Self {
+        Self::new(classification, year, month, day, None, None, 0)
+    }
+
+    pub fn ymd_offset(
+        classification: T,
+        year: Option<i32>,
+        month: Option<u32>,
+        day: Option<u32>,
+        offset: i32,
+    ) -> Self {
+        Self::new(classification, year, month, day, None, None, offset)
+    }
+
+    pub fn days(classification: T, days_of_week: Vec<Weekday>) -> Self {
+        Self::new(
+            classification,
+            None,
+            None,
+            None,
+            None,
+            Some(days_of_week),
+            0,
+        )
     }
 }
 
@@ -156,37 +194,29 @@ mod tests {
     #[test_case(2024, 5, 27, Some(Day::BankHoliday); "Late May Bank Holiday")]
     fn test_a_calender_with_entries(y: i32, m: u32, d: u32, expected: Option<Day>) {
         let mut subject = Calendar::<Day>::new();
-        subject.add_entry(Day::Workday, None, None, None, None, None, None, 0);
-        subject.add_entry(
+        subject.add(CalendarEntry::all(Day::Workday));
+        subject.add(CalendarEntry::days(
             Day::Weekend,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(vec![Weekday::Sun, Weekday::Sat]),
-            0,
-        );
-        subject.add_entry(
+            vec![Weekday::Sun, Weekday::Sat],
+        ));
+        subject.add(CalendarEntry::new(
             Day::BankHoliday,
             None,
             Some(5),
-            None,
             None,
             Some(1),
             Some(vec![Weekday::Mon]),
             0,
-        );
-        subject.add_entry(
+        ));
+        subject.add(CalendarEntry::new(
             Day::BankHoliday,
             None,
             Some(5),
             None,
-            None,
             Some(-1),
             Some(vec![Weekday::Mon]),
             0,
-        );
+        ));
 
         let actual = subject.classify_ymd(y, m, d);
 
@@ -199,39 +229,41 @@ mod tests {
     #[test_case(2021, 12, 28, Day::Holiday("X-ing lieu"))]
     fn test_offset_date(year: i32, month: u32, day: u32, expected: Day) {
         let mut subject = Calendar::<Day>::new();
-        subject.add_entry(Day::Workday, None, None, None, None, None, None, 0);
-        subject.add_entry(
+        subject.add(CalendarEntry::all(Day::Workday));
+        subject.add(CalendarEntry::days(
             Day::Weekend,
+            vec![Weekday::Sun, Weekday::Sun],
+        ));
+        subject.add(CalendarEntry::ymd(
+            Day::Holiday("X-mas"),
             None,
+            Some(12),
+            Some(25),
+        ));
+        subject.add(CalendarEntry::ymd(
+            Day::Holiday("X-ing"),
             None,
-            None,
-            None,
-            None,
-            Some(vec![Weekday::Sun, Weekday::Sun]),
-            0,
-        );
-        subject.add_entry_ymd(Day::Holiday("X-mas"), None, Some(12), Some(25));
-        subject.add_entry_ymd(Day::Holiday("X-ing"), None, Some(12), Some(26));
-        subject.add_entry(
+            Some(12),
+            Some(26),
+        ));
+        subject.add(CalendarEntry::new(
             Day::Holiday("X-mas lieu"),
             None,
             Some(12),
             Some(25),
             None,
-            None,
             Some(vec![Weekday::Sat, Weekday::Sun]),
             2,
-        );
-        subject.add_entry(
+        ));
+        subject.add(CalendarEntry::new(
             Day::Holiday("X-ing lieu"),
             None,
             Some(12),
             Some(26),
             None,
-            None,
             Some(vec![Weekday::Sat, Weekday::Sun]),
             2,
-        );
+        ));
 
         let actual = subject.classify_ymd(year, month, day);
 
