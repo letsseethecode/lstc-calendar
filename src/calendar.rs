@@ -29,7 +29,7 @@ pub struct Calendar<T> {
 }
 
 ///
-///
+/// The Calendar Entry represents a date pattern to match against.
 ///
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CalendarEntry<T> {
@@ -95,6 +95,9 @@ impl<T> Calendar<T> {
 }
 
 impl<T> CalendarEntry<T> {
+    ///
+    /// Internal matching function used by Calendar.classify().
+    ///
     fn matches(&self, date: NaiveDate) -> bool {
         let date = date - Duration::days(self.offset as i64);
         let year = date.year();
@@ -124,6 +127,9 @@ impl<T> CalendarEntry<T> {
                 .map_or(true, |v| v.contains(&weekday))
     }
 
+    ///
+    /// Standard constructor
+    ///
     pub fn new(
         classification: T,
         year: Option<i32>,
@@ -144,24 +150,23 @@ impl<T> CalendarEntry<T> {
         }
     }
 
+    ///
+    /// A pattern that matches all dates
+    ///
     pub fn all(classification: T) -> Self {
         Self::new(classification, None, None, None, None, None, 0)
     }
 
+    ///
+    /// A pattern that matches dates based on the ymd section
+    ///
     pub fn ymd(classification: T, year: Option<i32>, month: Option<u32>, day: Option<u32>) -> Self {
         Self::new(classification, year, month, day, None, None, 0)
     }
 
-    pub fn ymd_offset(
-        classification: T,
-        year: Option<i32>,
-        month: Option<u32>,
-        day: Option<u32>,
-        offset: i32,
-    ) -> Self {
-        Self::new(classification, year, month, day, None, None, offset)
-    }
-
+    ///
+    /// A pattern that matches days of the week.  Useful for weekends.
+    ///
     pub fn days(classification: T, days_of_week: Vec<Weekday>) -> Self {
         Self::new(
             classification,
