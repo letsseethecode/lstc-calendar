@@ -4,18 +4,21 @@ use chrono::{Datelike, Duration, Months, NaiveDate, Weekday};
 use serde::{Deserialize, Serialize};
 
 ///
-/// The Calendar is a collection of patterns to match.
-///
+/// The LSTC Calendar is used to create a collection of patterns to perform
+/// matches against, thereby allowing us to classify dates into more useful
+/// domain meanings, such as "workday", "weekend" or "bank holiday", etc.
 /// ```
 /// use chrono::{NaiveDate, Weekday};
 /// use lstc_calendar::{Calendar, CalendarEntry};
 /// enum Day {
 ///     Workday,
 ///     Weekend,
+///     BankHoliday(&'static str),
 /// }
 /// let mut subject = Calendar::<Day>::new();
 /// subject.add(CalendarEntry::all(Day::Workday));
 /// subject.add(CalendarEntry::days(Day::Weekend, vec![Weekday::Sat, Weekday::Sun]));
+/// subject.add(CalendarEntry::ymd(Day::BankHoliday("Christmas"), None, Some(12), Some(25)));
 /// let today = chrono::offset::Local::now().naive_local().date();
 /// let today = subject.classify(today);
 /// ```
@@ -60,6 +63,10 @@ impl<T> Calendar<T> {
         }
     }
 
+    ///
+    /// Classifify a given date, based on the entries added.  Entries are
+    /// evaluated in reverse order, making the latest entries evaludated first.
+    ///
     pub fn classify(self, date: NaiveDate) -> Option<T> {
         for e in self.entries {
             if e.matches(date) {
@@ -69,11 +76,19 @@ impl<T> Calendar<T> {
         None
     }
 
+    ///
+    /// Helper function that classifies a date from it's ymd portions.
+    ///
     pub fn classify_ymd(self, year: i32, month: u32, day: u32) -> Option<T> {
         let d = NaiveDate::from_ymd_opt(year, month, day).unwrap();
         self.classify(d)
     }
 
+    ///
+    /// Add a Calendar Entry into the Calendar.  Ordering is important when
+    /// classifying dates.  The oldest entry is matched last, therefore allowing
+    /// greater specificity in further entries.
+    ///
     pub fn add(&mut self, entry: CalendarEntry<T>) {
         self.entries.insert(0, entry)
     }
