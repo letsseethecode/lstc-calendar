@@ -6,7 +6,7 @@ CFG_FILES = $(shell find . -name "*.toml")
 target/release/lstc-calendar.rlib: $(SRC_FILES) $(CFG_FILES)
 	cargo build --release
 
-build: target/release/liblstc-calendar.rlib
+build: target/release/lstc-calendar.rlib
 
 publish: build
 	$(eval VERSION := $(shell grep -Eoi "^version = \"([^\"]+)\"" Cargo.toml | grep -Eo "(\d+\.\d+\.\d+)"))
